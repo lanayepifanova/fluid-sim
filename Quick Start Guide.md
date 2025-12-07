@@ -2,10 +2,12 @@
 
 ## Installation (5 minutes)
 
+Use Python 3.11 (not 3.14).
+
 ### 1. Create Virtual Environment
 ```bash
 cd /home/ubuntu
-python3 -m venv fluid_sim_env
+python3.11 -m venv fluid_sim_env
 source fluid_sim_env/bin/activate
 ```
 
@@ -16,7 +18,18 @@ pip install opencv-python mediapipe scipy numpy
 
 ### 3. Run the Application
 ```bash
-python3 fluid_interaction.py
+python fluid_interaction.py
+```
+
+### Quick Fix (macOS, using python3.11 if installed)
+```bash
+deactivate
+rm -rf fluid_sim_env
+python3.11 -m venv fluid_sim_env
+source fluid_sim_env/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python fluid_interaction.py
 ```
 
 ## First Run
@@ -69,7 +82,7 @@ python3 fluid_interaction.py
 ### "Could not open webcam"
 ```bash
 # Check if webcam is accessible
-python3 -c "import cv2; cap = cv2.VideoCapture(0); print('OK' if cap.isOpened() else 'FAILED')"
+python -c "import cv2; cap = cv2.VideoCapture(0); print('OK' if cap.isOpened() else 'FAILED')"
 ```
 
 ### Hand Not Detected

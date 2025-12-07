@@ -81,22 +81,34 @@ A visually dramatic, real-time fluid simulation system that responds to hand mov
 
 ### Requirements
 
-- Python 3.8+
+- Python 3.11 (not 3.14)
 - Webcam
 - Linux/macOS/Windows
 
 ### Setup
 
 ```bash
-# Create virtual environment
-python3 -m venv fluid_sim_env
+# Create virtual environment (macOS/Linux, Python 3.11)
+python3.11 -m venv fluid_sim_env
 source fluid_sim_env/bin/activate  # On Windows: fluid_sim_env\Scripts\activate
 
 # Install dependencies
 pip install opencv-python mediapipe scipy numpy
 
 # Run the application
-python3 fluid_interaction.py
+python fluid_interaction.py
+```
+
+Quick fix (macOS, using python3.11 if installed):
+
+```bash
+deactivate
+rm -rf fluid_sim_env
+python3.11 -m venv fluid_sim_env
+source fluid_sim_env/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python fluid_interaction.py
 ```
 
 ## Usage
@@ -222,7 +234,7 @@ def custom_effect(self, density, vel_x, vel_y):
 
 - Ensure adequate lighting
 - Keep hands fully visible in frame
-- Check webcam is working: `python3 -c "import cv2; cap = cv2.VideoCapture(0); print(cap.isOpened())"`
+- Check webcam is working: `python -c "import cv2; cap = cv2.VideoCapture(0); print(cap.isOpened())"`
 
 ### Low FPS
 

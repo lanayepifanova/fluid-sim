@@ -82,15 +82,16 @@ Performance:
 
 QUICK START
 -----------
+Python 3.11 is required (not 3.14).
 1. Create virtual environment:
-   python3 -m venv fluid_sim_env
+   python3.11 -m venv fluid_sim_env
    source fluid_sim_env/bin/activate
 
 2. Install dependencies:
    pip install opencv-python mediapipe scipy numpy
 
 3. Run application:
-   python3 fluid_interaction.py
+   python fluid_interaction.py
 
 KEYBOARD CONTROLS
 -----------------
