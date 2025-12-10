@@ -1,0 +1,8 @@
+# Python virtual env and caches
+.venv/
+.matplotlib/
+__pycache__/
+*.pyc
+
+# macOS artifacts
+.DS_Store
