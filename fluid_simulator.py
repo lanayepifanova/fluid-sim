@@ -11,7 +11,7 @@ class FluidConfig:
     diffusion: float = 0.0001  # Diffusion coefficient
     viscosity: float = 0.0001  # Viscosity coefficient
     decay: float = 0.995  # Velocity decay per frame
-    pressure_iterations: int = 20  # Iterations for pressure solving
+    pressure_iterations: int = 8  # Iterations for pressure solving
     
 
 class FluidSimulator:

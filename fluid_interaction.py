@@ -33,6 +33,8 @@ class FluidInteractionSystem:
         self.sim_height = sim_height
         self.display_width = display_width
         self.display_height = display_height
+        self.tracking_width = 640
+        self.tracking_height = 360
         
         # Initialize components
         self.hand_tracker = HandTracker(max_hands=2, detection_confidence=0.7)
@@ -43,7 +45,7 @@ class FluidInteractionSystem:
             diffusion=0.0002,
             viscosity=0.00001,
             decay=0.995,
-            pressure_iterations=20
+            pressure_iterations=8
         )
         self.fluid_sim = FluidSimulator(config)
         self.visualizer = FluidVisualizer(sim_width, sim_height)
@@ -67,6 +69,13 @@ class FluidInteractionSystem:
         # Performance tracking
         self.frame_count = 0
         self.fps = 0
+        self.sim_frame_index = 0
+        self.prev_density = None
+        self.prev_vel_x = None
+        self.prev_vel_y = None
+        self.effect_frame_index = 0
+        self.effect_stride = 2
+        self.last_effect_vis = None
         
     def process_hand_interaction(self, hand_data_list):
         """
@@ -98,20 +107,24 @@ class FluidInteractionSystem:
                 # Add density for visualization
                 self.fluid_sim.add_density(x, y, amount=150, radius=radius)
                 
-    def render_frame(self, camera_frame):
+    def render_frame(self, camera_frame, density=None, vel_x=None, vel_y=None):
         """
         Render a complete frame with all visualizations
         
         Args:
             camera_frame: Input camera frame
+            density: Optional density field override
+            vel_x, vel_y: Optional velocity field overrides
             
         Returns:
             Rendered output frame
         """
         # Get simulation fields
-        density = self.fluid_sim.get_density_field()
-        vel_x = self.fluid_sim.velocity_x
-        vel_y = self.fluid_sim.velocity_y
+        if density is None:
+            density = self.fluid_sim.get_density_field()
+        if vel_x is None or vel_y is None:
+            vel_x = self.fluid_sim.velocity_x
+            vel_y = self.fluid_sim.velocity_y
         
         # Create visualization based on mode
         if self.visualization_mode == 'density':
@@ -129,15 +142,21 @@ class FluidInteractionSystem:
         elif self.visualization_mode == 'combined':
             # Combine multiple visualizations
             density_vis = self.visualizer.density_to_color(density, self.colormap)
-            particle_vis = self.visualizer.create_particle_effect(density, vel_x, vel_y, num_particles=1000)
-            streamline_vis = self.visualizer.create_streamlines(vel_x, vel_y, num_lines=15, length=40)
+            streamline_vis = self.visualizer.create_streamlines(vel_x, vel_y, num_lines=20, length=45)
+            particle_vis = self.visualizer.create_particle_effect(density, vel_x, vel_y, num_particles=400)
             
-            fluid_vis = self.visualizer.blend_images(density_vis, particle_vis, 0.6)
-            fluid_vis = self.visualizer.blend_images(fluid_vis, streamline_vis, 0.4)
+            fluid_vis = self.visualizer.blend_images(density_vis, streamline_vis, 0.7)
+            fluid_vis = self.visualizer.blend_images(fluid_vis, particle_vis, 0.2)
         
-        # Add effects
-        fluid_vis = self.visualizer.add_glow_effect(fluid_vis, intensity=0.3)
-        fluid_vis = self.visualizer.add_motion_blur(fluid_vis, vel_x, vel_y)
+        # Add effects (throttled to every N frames)
+        if self.effect_frame_index % self.effect_stride == 0 or self.last_effect_vis is None:
+            effect_vis = self.visualizer.add_glow_effect(fluid_vis, intensity=0.3)
+            effect_vis = self.visualizer.add_motion_blur(effect_vis, vel_x, vel_y)
+            self.last_effect_vis = effect_vis
+        else:
+            effect_vis = self.last_effect_vis
+        self.effect_frame_index += 1
+        fluid_vis = effect_vis
         
         # Resize to display resolution
         display_fluid = cv2.resize(fluid_vis, (self.display_width, self.display_height), 
@@ -219,15 +238,55 @@ class FluidInteractionSystem:
                 camera_frame = cv2.flip(camera_frame, 1)
                 
                 # Track hands
-                hand_data_list = self.hand_tracker.process_frame(camera_frame)
+                tracking_frame = cv2.resize(camera_frame, (self.tracking_width, self.tracking_height))
+                hand_data_list = self.hand_tracker.process_frame(tracking_frame)
+                
+                if hand_data_list:
+                    scale_x = self.display_width / self.tracking_width
+                    scale_y = self.display_height / self.tracking_height
+                    for hand_data in hand_data_list:
+                        hand_data.position[0] *= scale_x
+                        hand_data.position[1] *= scale_y
+                        hand_data.velocity[0] *= scale_x
+                        hand_data.velocity[1] *= scale_y
+                        if hand_data.landmarks is not None:
+                            hand_data.landmarks[:, 0] *= scale_x
+                            hand_data.landmarks[:, 1] *= scale_y
                 
                 # Update simulation
+                did_sim_step = False
                 if not self.paused:
-                    self.process_hand_interaction(hand_data_list)
-                    self.fluid_sim.step(dt=1.0)
+                    if self.sim_frame_index % 2 == 0:
+                        self.prev_density = self.fluid_sim.density.copy()
+                        self.prev_vel_x = self.fluid_sim.velocity_x.copy()
+                        self.prev_vel_y = self.fluid_sim.velocity_y.copy()
+                        self.process_hand_interaction(hand_data_list)
+                        self.fluid_sim.step(dt=1.0)
+                        did_sim_step = True
+                    self.sim_frame_index += 1
                 
-                # Render
-                output_frame, fluid_vis = self.render_frame(camera_frame)
+                # Render with interpolation on non-sim frames
+                if self.prev_density is not None and not self.paused:
+                    alpha = 1.0 if did_sim_step else 0.5
+
+                    interp_density = (
+                        self.prev_density * (1.0 - alpha) + self.fluid_sim.density * alpha
+                    )
+                    interp_vel_x = (
+                        self.prev_vel_x * (1.0 - alpha) + self.fluid_sim.velocity_x * alpha
+                    )
+                    interp_vel_y = (
+                        self.prev_vel_y * (1.0 - alpha) + self.fluid_sim.velocity_y * alpha
+                    )
+                    density_field = np.clip(interp_density, 0, 255).astype(np.uint8)
+                    output_frame, fluid_vis = self.render_frame(
+                        camera_frame,
+                        density=density_field,
+                        vel_x=interp_vel_x,
+                        vel_y=interp_vel_y
+                    )
+                else:
+                    output_frame, fluid_vis = self.render_frame(camera_frame)
                 
                 # Draw hand tracking
                 if self.show_hands:
@@ -288,8 +347,8 @@ class FluidInteractionSystem:
 if __name__ == '__main__':
     try:
         system = FluidInteractionSystem(
-            sim_width=512,
-            sim_height=512,
+            sim_width=384,
+            sim_height=384,
             display_width=1024,
             display_height=768
         )
