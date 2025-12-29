@@ -24,18 +24,32 @@ class HandTracker:
             max_hands: Maximum number of hands to detect
             detection_confidence: Confidence threshold for detection
         """
-        self.mp_hands = mp.solutions.hands
+        self.mp_hands, self.mp_drawing = self._resolve_mediapipe()
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
             max_num_hands=max_hands,
             min_detection_confidence=detection_confidence,
             min_tracking_confidence=0.5
         )
-        self.mp_drawing = mp.solutions.drawing_utils
         
         self.previous_positions = {}
         self.frame_width = 0
         self.frame_height = 0
+
+    @staticmethod
+    def _resolve_mediapipe():
+        if hasattr(mp, "solutions"):
+            return mp.solutions.hands, mp.solutions.drawing_utils
+        try:
+            from mediapipe.python.solutions import hands as mp_hands
+            from mediapipe.python.solutions import drawing_utils as mp_drawing
+        except Exception as exc:
+            raise ImportError(
+                "MediaPipe solutions API not available. Install the official "
+                "`mediapipe` package (pip install mediapipe) in your active "
+                "environment."
+            ) from exc
+        return mp_hands, mp_drawing
         
     def process_frame(self, frame: np.ndarray) -> List[HandData]:
         """
