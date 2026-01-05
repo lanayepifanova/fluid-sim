@@ -1,5 +1,6 @@
 # Python virtual env and caches
 .venv/
+fluid_sim_env/
 .matplotlib/
 __pycache__/
 *.pyc

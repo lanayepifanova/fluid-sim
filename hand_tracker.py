@@ -38,8 +38,11 @@ class HandTracker:
 
     @staticmethod
     def _resolve_mediapipe():
-        if hasattr(mp, "solutions"):
-            return mp.solutions.hands, mp.solutions.drawing_utils
+        try:
+            from mediapipe import solutions as mp_solutions
+            return mp_solutions.hands, mp_solutions.drawing_utils
+        except Exception:
+            pass
         try:
             from mediapipe.python.solutions import hands as mp_hands
             from mediapipe.python.solutions import drawing_utils as mp_drawing
